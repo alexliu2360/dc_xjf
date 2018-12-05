@@ -3,26 +3,17 @@ import os
 import pandas as pd
 import time
 import config as cfg
+from sklearn.preprocessing import LabelEncoder
 
-op_train, tran_train, tag_train = None, None, None
 
-
-def fillna(data, string_fts, numeric_fts):
+def fillna(data, numeric_fts, string_fts):
     # 填充缺失值
-    for i in string_fts:
-        mode_num = data[i].mode()[0]
-        if (mode_num != -1):
-            print(i)
-            data.loc[data[i] == -1, i] = mode_num
-        else:
-            print(-1)
-    for i in numeric_fts:
-        mean_num = data[i].mean()
-        if (mean_num != -1):
-            print(i)
-            data.loc[data[i] == -1, i] = mean_num
-        else:
-            print(-1)
+    for ft in numeric_fts:
+        data[ft].fillna(-1, inplace=True)
+
+    for ft in string_fts:
+        data[ft].fillna('-1', inplace=True)
+
     return data
 
 
@@ -73,11 +64,12 @@ def preprocess(op_train, tran_train, tag_train):
     return op_train, tran_train, tag_train
 
 
-def drop_dup():
+def drop_dup(op_train, tran_train, tag_train):
     # 去重
     op_train.drop_duplicates(inplace=True)
     tran_train.drop_duplicates(inplace=True)
     tag_train.drop_duplicates(inplace=True)
+    return op_train, tran_train, tag_train
     # # 分组
     # op_train_gb = op_train.groupby('UID', as_index=False)
     # tran_train_gb = tran_train.groupby('UID', as_index=False)
@@ -87,6 +79,7 @@ def drop_dup():
     # # 获取op和tran各自的tag
     # op_tag = tag_train[tag_train['UID'].isin(op_train['UID'])]
     # tran_tag = tag_train[tag_train['UID'].isin(tran_train['UID'])]
+
 
 def get_nan_counts(gb_count, ft_columns):
     hasnans_features_cnts = []
@@ -121,17 +114,18 @@ def remove_list_item(src_l, rm_l):
     return src_l
 
 
-def preprocess(train_data, train_columns, le_obj_fts, numtype_fts):
+def process_data(train_data, train_columns, le_obj_fts, numtype_fts):
     print('[info]: start fill nans...')
+    train_gb = None
     for ft in numtype_fts:
         train_data[ft].fillna(-1, inplace=True)
         train_gb = train_data.groupby('UID', as_index=False)
 
-    # 填补缺失值
-    train_data = train_gb.ffill()
-    train_gb = train_data.groupby('UID', as_index=False)
-    train_data = train_gb.bfill()
-    train_gb = train_data.groupby('UID', as_index=False)
+    # 假设用户的行为前后一致 填补缺失值
+    # train_data = train_gb.ffill()
+    # train_gb = train_data.groupby('UID', as_index=False)
+    # train_data = train_gb.bfill()
+    # train_gb = train_data.groupby('UID', as_index=False)
 
     # 在填补基础上计数，去除nan值占一半以上的值
     print('[info]: start remove invalid features...')
@@ -142,8 +136,8 @@ def preprocess(train_data, train_columns, le_obj_fts, numtype_fts):
 
     # 填补剩余的缺失值
     print('[info]: start handle left nans...')
-    op_hasnans_features_cnts = get_nan_counts(train_gb.count(), train_columns)
-    for ft_cnts in op_hasnans_features_cnts:
+    hasnans_features_cnts = get_nan_counts(train_gb.count(), train_columns)
+    for ft_cnts in hasnans_features_cnts:
         if train_data[ft_cnts[0]].hasnans:
             train_data[ft_cnts[0]].fillna('-1', inplace=True)
     train_gb = train_data.groupby('UID', as_index=False)
@@ -163,33 +157,53 @@ def preprocess(train_data, train_columns, le_obj_fts, numtype_fts):
     return train_data, train_gb, train_columns, le_obj_fts
 
 
-def get_tag(uid):
-    return tag_train[tag_train['UID'] == uid]
+def drop_invalid(train_data, invalid_features):
+    train_data.drop(invalid_features, axis='columns', inplace=True)
+    return train_data
 
 
-def get_op(uid):
-    return op_train[op_train['UID'] == uid]
-
-
-def get_tran(uid):
-    return tran_train[tran_train['UID'] == uid]
-
-
-def get_value_counts(uid, train_data):
-    assert type(train_data) is pd.DataFrame
-    for c in list(train_data.columns):
-        print('[%r]' % c)
-        print(train_data[train_data['UID'] == uid][c].value_counts())
-        print('====')
-
-
+def label_encode(train_data, le_obj_fts):
+    print('[info]: start label encoding...')
+    le = LabelEncoder()
+    for feature in le_obj_fts:
+        try:
+            print('[info]: %r label encoding...' % feature)
+            train_data[feature] = le.fit_transform(train_data[feature])
+        except TypeError as e:
+            print(e)
+    print('[info]: label encoding finished.')
+    return train_data
 
 
 def main():
+
     op_train, tran_train, tag_train = load_data()
     op_columns = list(op_train.columns)
     tran_columns = list(tran_train.columns)
-    drop_dup()
+
+    cfg.op_le_obj_fts = remove_list_item(cfg.op_le_obj_fts, cfg.op_drop_fts)
+    cfg.op_numtype_fts = remove_list_item(cfg.op_numtype_fts, cfg.op_drop_fts)
+    cfg.tran_le_obj_fts = remove_list_item(cfg.tran_le_obj_fts, cfg.tran_drop_fts)
+    cfg.tran_numtype_fts = remove_list_item(cfg.tran_numtype_fts, cfg.tran_drop_fts)
+
+    # 去重
+    print('drop_dup...')
+    op_train, tran_train, tag_train = drop_dup(op_train, tran_train, tag_train)
+    # 去无用的ft
+    print('drop...')
+    op_train.drop(cfg.op_drop_fts, axis='columns', inplace=True)
+    tran_train.drop(cfg.tran_drop_fts, axis='columns', inplace=True)
+    # 填补缺失值
+    print('fillna...')
+    op_train = fillna(op_train, cfg.op_numtype_fts, cfg.op_le_obj_fts)
+    tran_train = fillna(tran_train, cfg.tran_numtype_fts, cfg.tran_le_obj_fts)
+    # 编码
+    print('label_encode...')
+    op_train = label_encode(op_train, cfg.op_le_obj_fts)
+    tran_train = label_encode(tran_train, cfg.tran_le_obj_fts)
+
+    op_train.to_csv(cfg.data_path + 'op_train.csv')
+    tran_train.to_csv(cfg.data_path + 'tran_train.csv')
 
 
 if __name__ == '__main__':
