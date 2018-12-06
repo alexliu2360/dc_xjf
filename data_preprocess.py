@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import numpy as np
 import pandas as pd
 import time
 import config as cfg
@@ -169,6 +170,7 @@ def label_encode(train_data, le_obj_fts):
         try:
             print('[info]: %r label encoding...' % feature)
             train_data[feature] = le.fit_transform(train_data[feature])
+            train_data[feature].replace(0, np.nan, inplace=True)
         except TypeError as e:
             print(e)
     print('[info]: label encoding finished.')
@@ -202,8 +204,8 @@ def main():
     op_train = label_encode(op_train, cfg.op_le_obj_fts)
     tran_train = label_encode(tran_train, cfg.tran_le_obj_fts)
 
-    op_train.to_csv(cfg.data_path + 'op_train.csv')
-    tran_train.to_csv(cfg.data_path + 'tran_train.csv')
+    op_train.to_csv(cfg.op_origin_file)
+    tran_train.to_csv(cfg.tran_origin_file)
 
 
 if __name__ == '__main__':

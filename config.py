@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import os
 
-base_dir = os.path.abspath(os.path.dirname(__file__))
+base_path = os.path.abspath(os.path.dirname(__file__))
 
-data_path = base_dir + '/../data/'
+data_path = base_path + '/../data/'
+origin_path = data_path + 'origin_data/'
+
 op_train_new_fn = 'operation_train_new.csv'
 tran_train_new_fn = 'transaction_train_new.csv'
 tag_train_new_fn = 'tag_train_new.csv'
@@ -22,8 +24,8 @@ op_train_sorted_file = data_path + op_train_sorted_fn
 tran_train_sorted_file = data_path + tran_train_sorted_fn
 tag_train_sorted_file = data_path + tag_train_sorted_fn
 
-op_origin_file = data_path + op_origin_fn
-tran_origin_file = data_path + tran_origin_fn
+op_origin_file = origin_path + op_origin_fn
+tran_origin_file = origin_path + tran_origin_fn
 
 
 op_le_obj_fts = ['mode', 'os', 'version',
