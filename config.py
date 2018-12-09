@@ -9,30 +9,55 @@ fts_path = data_path + 'fts/'
 
 op_train_fts_fn = 'op_fts.csv'
 tran_train_fts_fn = 'tran_fts.csv'
+op_train_fts_round1_fn = 'op_round1_fts.csv'
+tran_train_fts_round1_fn = 'tran_round1_fts.csv'
 tag_train_fts_fn = 'tag_fts.csv'
-op_train_new_fn = 'operation_train_new.csv'
-tran_train_new_fn = 'transaction_train_new.csv'
-tag_train_new_fn = 'tag_train_new.csv'
-op_train_sorted_fn = 'op_train_sorted.csv'
-tran_train_sorted_fn = 'tran_train_sorted.csv'
-tag_train_sorted_fn = 'tag_train_sorted.csv'
-
-op_origin_fn = 'op_origin.csv'
-tran_origin_fn = 'tran_origin.csv'
+round1_fts_fn = 'round1_fts.csv'
 
 op_train_fts_file = fts_path + op_train_fts_fn
 tran_train_fts_file = fts_path + tran_train_fts_fn
+op_train_fts_round1_file = fts_path + op_train_fts_round1_fn
+tran_train_fts_round1_file = fts_path + tran_train_fts_round1_fn
+round1_fts_file = fts_path + round1_fts_fn
+
+
+op_train_new_fn = 'operation_train_new.csv'
+tran_train_new_fn = 'transaction_train_new.csv'
+tag_train_new_fn = 'tag_train_new.csv'
+op_train_round1_fn = 'operation_round1_new.csv'
+tran_train_round1_fn = 'transaction_round1_new.csv'
+
+op_train_sorted_fn = 'op_train_sorted.csv'
+tran_train_sorted_fn = 'tran_train_sorted.csv'
+tag_train_sorted_fn = 'tag_train_sorted.csv'
+op_train_round1_sorted_fn = 'operation_round1_sorted.csv'
+tran_train_round1_sorted_fn = 'transaction_round1_sorted.csv'
+
+op_origin_fn = 'op_origin.csv'
+tran_origin_fn = 'tran_origin.csv'
+op_origin_round1_fn = 'op_origin_round1.csv'
+tran_origin_round1_fn = 'tran_origin_round1.csv'
+
+
 tag_train_fts_file = fts_path + tag_train_fts_fn
 op_train_new_file = data_path + op_train_new_fn
 tran_train_new_file = data_path + tran_train_new_fn
 tag_train_new_file = data_path + tag_train_new_fn
+
+op_train_round1_file = data_path + op_train_round1_fn
+tran_train_round1_file = data_path + tran_train_round1_fn
+
+
 op_train_sorted_file = data_path + op_train_sorted_fn
 tran_train_sorted_file = data_path + tran_train_sorted_fn
 tag_train_sorted_file = data_path + tag_train_sorted_fn
+op_train_round1_sorted_file = data_path + op_train_round1_sorted_fn
+tran_train_round1_sorted_file = data_path + tran_train_round1_sorted_fn
 
-op_origin_file = origin_path + op_origin_fn
-tran_origin_file = origin_path + tran_origin_fn
-
+op_origin_train_file = origin_path + op_origin_fn
+tran_origin_train_file = origin_path + tran_origin_fn
+op_origin_round1_file = origin_path + op_origin_round1_fn
+tran_origin_round1_file = origin_path + tran_origin_round1_fn
 
 op_obj_fts = ['mode', 'os', 'version',
                  'device1', 'device2', 'device_code1', 'device_code2', 'device_code3',

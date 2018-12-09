@@ -25,7 +25,7 @@ def replace_ft_value(data, fts, src_str, re_str):
         data[ft].replace(src_str, re_str, inplace=True)
 
 
-def load_data():
+def load_train_data():
     if not os.path.exists(cfg.op_train_sorted_file) \
             or not os.path.exists(cfg.tran_train_sorted_file) \
             or not os.path.exists(cfg.tag_train_sorted_file):
@@ -53,7 +53,30 @@ def load_data():
     return op_train, tran_train, tag_train
 
 
-def preprocess(op_train, tran_train, tag_train):
+def load_round1_data():
+    if not os.path.exists(cfg.op_train_round1_sorted_file) \
+            or not os.path.exists(cfg.tran_train_round1_sorted_file):
+        print('[info]:start read from new round1 data...')
+        is_preprocessed = False
+        print('[info]:start read from op_rd1...')
+        op_train = pd.read_csv(cfg.op_train_round1_file)
+        print('[info]:start read from tran_rd1...')
+        tran_train = pd.read_csv(cfg.tran_train_round1_file)
+    else:
+        print('[info]:start read from sorted round1 data...')
+        is_preprocessed = True
+        print('[info]:start read from op_rd1...')
+        op_train = pd.read_csv(cfg.op_train_round1_sorted_file).drop('Unnamed: 0', axis=1)
+        print('[info]:start read from tran_rd1...')
+        tran_train = pd.read_csv(cfg.tran_train_round1_sorted_file).drop('Unnamed: 0', axis=1)
+
+    if not is_preprocessed:
+        preprocess(op_train, tran_train)
+
+    return op_train, tran_train
+
+
+def preprocess(op_train, tran_train, tag_train=None):
     # 处理时间字符串
     op_train['time'] = op_train['day'].apply(lambda x: "2018-08-%02d" % x) + ' ' + op_train['time']
     op_train['timestamp'] = op_train['time'].apply(lambda x: time.mktime(time.strptime(x, '%Y-%m-%d %H:%M:%S')))
@@ -64,19 +87,23 @@ def preprocess(op_train, tran_train, tag_train):
     # 根据UID进行排序 再根据timestamp进行排序
     op_train = op_train.sort_values(by=['UID', 'timestamp'], ascending=True).reset_index(drop=True)
     tran_train = tran_train.sort_values(by=['UID', 'timestamp'], ascending=True).reset_index(drop=True)
-    tag_train = tag_train.sort_values(by=['UID'], ascending=True).reset_index(drop=True)
 
     op_train.to_csv(cfg.data_path + cfg.op_train_sorted_fn)
     tran_train.to_csv(cfg.data_path + cfg.tran_train_sorted_fn)
-    tag_train.to_csv(cfg.data_path + cfg.tag_train_sorted_fn)
+
+    if tag_train is not None:
+        tag_train = tag_train.sort_values(by=['UID'], ascending=True).reset_index(drop=True)
+        tag_train.to_csv(cfg.data_path + cfg.tag_train_sorted_fn)
+
     return op_train, tran_train, tag_train
 
 
-def drop_dup(op_train, tran_train, tag_train):
+def drop_dup(op_train, tran_train, tag_train=None):
     # 去重
     op_train.drop_duplicates(inplace=True)
     tran_train.drop_duplicates(inplace=True)
-    tag_train.drop_duplicates(inplace=True)
+    if tag_train is not None:
+        tag_train.drop_duplicates(inplace=True)
     return op_train, tran_train, tag_train
     # # 分组
     # op_train_gb = op_train.groupby('UID', as_index=False)
@@ -185,10 +212,6 @@ def label_encode(train_data, le_obj_fts):
 
 
 def main():
-    op_train, tran_train, tag_train = load_data()
-    op_columns = list(op_train.columns)
-    tran_columns = list(tran_train.columns)
-
     cfg.op_obj_fts = remove_list_item(cfg.op_obj_fts, cfg.op_drop_fts)
     cfg.op_le_obj_fts = remove_list_item(cfg.op_le_obj_fts, cfg.op_drop_fts)
     cfg.op_numtype_fts = remove_list_item(cfg.op_numtype_fts, cfg.op_drop_fts)
@@ -196,35 +219,78 @@ def main():
     cfg.tran_le_obj_fts = remove_list_item(cfg.tran_le_obj_fts, cfg.tran_drop_fts)
     cfg.tran_numtype_fts = remove_list_item(cfg.tran_numtype_fts, cfg.tran_drop_fts)
 
-    # 去重
-    print('drop_dup...')
-    op_train, tran_train, tag_train = drop_dup(op_train, tran_train, tag_train)
-    # 去无用的ft
-    print('drop...')
-    op_train.drop(cfg.op_drop_fts, axis='columns', inplace=True)
-    tran_train.drop(cfg.tran_drop_fts, axis='columns', inplace=True)
-    # 填补缺失值
-    print('fillna...')
-    op_train = fillna(op_train, cfg.op_numtype_fts, cfg.op_obj_fts)
-    tran_train = fillna(tran_train, cfg.tran_numtype_fts, cfg.tran_obj_fts)
-    # 替换需要合并的特征中'-1'的值 这样可以进行特征值的拼接
-    print('replace_ft_values...')
-    replace_ft_value(op_train, ['device_code1', 'device_code2', 'device_code3', 'ip1', 'ip2', 'ip1_sub', 'ip2_sub'], '-1', '')
-    replace_ft_value(tran_train, ['device_code1', 'device_code2', 'device_code3'], '-1', '')
-    # 增加device和ip新ft
-    print('add new fts...')
-    op_train['device_code'] = op_train['device_code1'] + op_train['device_code2'] + op_train['device_code3'] + op_train[
-        'ip2']
-    op_train['ip'] = op_train['ip1'] + op_train['ip2']
-    op_train['ipsub'] = op_train['ip1_sub'] + op_train['ip2_sub']
-    tran_train['device_code'] = tran_train['device_code1'] + tran_train['device_code2'] + tran_train['device_code3']
-    # 编码
-    print('label_encode...')
-    op_train = label_encode(op_train, cfg.op_le_obj_fts)
-    tran_train = label_encode(tran_train, cfg.tran_le_obj_fts)
+    if not os.path.exists(cfg.op_origin_train_file) or not os.path.exists(cfg.tran_origin_train_file):
+        # train
+        print('preprocess train...')
+        op_train, tran_train, tag_train = load_train_data()
 
-    op_train.to_csv(cfg.op_origin_file)
-    tran_train.to_csv(cfg.tran_origin_file)
+        # 去重
+        print('drop_dup...')
+        op_train, tran_train, tag_train = drop_dup(op_train, tran_train, tag_train)
+
+        # 去无用的ft
+        print('drop...')
+        op_train.drop(cfg.op_drop_fts, axis='columns', inplace=True)
+        tran_train.drop(cfg.tran_drop_fts, axis='columns', inplace=True)
+
+        # 填补缺失值
+        print('fillna...')
+        op_train = fillna(op_train, cfg.op_numtype_fts, cfg.op_obj_fts)
+        tran_train = fillna(tran_train, cfg.tran_numtype_fts, cfg.tran_obj_fts)
+
+        # 替换需要合并的特征中'-1'的值 这样可以进行特征值的拼接
+        print('replace_ft_values...')
+        replace_ft_value(op_train, ['device_code1', 'device_code2', 'device_code3', 'ip1', 'ip2', 'ip1_sub', 'ip2_sub'],
+                         '-1', '')
+        replace_ft_value(tran_train, ['device_code1', 'device_code2', 'device_code3'], '-1', '')
+
+        # 增加device和ip新ft
+        print('add new fts...')
+        op_train['device_code'] = op_train['device_code1'] + op_train['device_code2'] + op_train['device_code3'] + op_train[
+            'ip2']
+        op_train['ip'] = op_train['ip1'] + op_train['ip2']
+        op_train['ipsub'] = op_train['ip1_sub'] + op_train['ip2_sub']
+        tran_train['device_code'] = tran_train['device_code1'] + tran_train['device_code2'] + tran_train['device_code3']
+        # 编码
+        print('label_encode...')
+        op_train = label_encode(op_train, cfg.op_le_obj_fts)
+        tran_train = label_encode(tran_train, cfg.tran_le_obj_fts)
+
+        op_train.to_csv(cfg.op_origin_train_file)
+        tran_train.to_csv(cfg.tran_origin_train_file)
+    else:
+        print('train origin files already existed.')
+
+    if not os.path.exists(cfg.op_origin_round1_file) or not os.path.exists(cfg.tran_origin_round1_file):
+        # round1
+        print('preprocess round1...')
+        op_rd1, tran_rd1 = load_round1_data()
+        print('drop_dup...')
+        op_rd1, tran_rd1, _ = drop_dup(op_rd1, tran_rd1)
+        print('drop...')
+        op_rd1.drop(cfg.op_drop_fts, axis='columns', inplace=True)
+        tran_rd1.drop(cfg.tran_drop_fts, axis='columns', inplace=True)
+        print('fillna...')
+        op_rd1 = fillna(op_rd1, cfg.op_numtype_fts, cfg.op_obj_fts)
+        tran_rd1 = fillna(tran_rd1, cfg.tran_numtype_fts, cfg.tran_obj_fts)
+        print('replace_ft_values...')
+        replace_ft_value(op_rd1, ['device_code1', 'device_code2', 'device_code3', 'ip1', 'ip2', 'ip1_sub', 'ip2_sub'],
+                         '-1', '')
+        replace_ft_value(tran_rd1, ['device_code1', 'device_code2', 'device_code3'], '-1', '')
+        print('add new fts...')
+        op_rd1['device_code'] = op_rd1['device_code1'] + op_rd1['device_code2'] + op_rd1['device_code3'] + op_rd1[
+            'ip2']
+        op_rd1['ip'] = op_rd1['ip1'] + op_rd1['ip2']
+        op_rd1['ipsub'] = op_rd1['ip1_sub'] + op_rd1['ip2_sub']
+        tran_rd1['device_code'] = tran_rd1['device_code1'] + tran_rd1['device_code2'] + tran_rd1['device_code3']
+        print('label_encode...')
+        op_rd1 = label_encode(op_rd1, cfg.op_le_obj_fts)
+        tran_rd1 = label_encode(tran_rd1, cfg.tran_le_obj_fts)
+
+        op_rd1.to_csv(cfg.op_origin_round1_file)
+        tran_rd1.to_csv(cfg.tran_origin_round1_file)
+    else:
+        print('round1 files already existed.')
 
 
 if __name__ == '__main__':

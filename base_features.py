@@ -5,14 +5,22 @@ import pandas as pd
 import numpy as np
 
 
-def load_data():
+def load_new_data():
     print('[info]:start read from op_train...')
-    op_train = pd.read_csv(cfg.op_origin_file).drop('Unnamed: 0', axis=1)
+    op_train = pd.read_csv(cfg.op_origin_train_file).drop('Unnamed: 0', axis=1)
     print('[info]:start read from tran_train...')
-    tran_train = pd.read_csv(cfg.tran_origin_file).drop('Unnamed: 0', axis=1)
+    tran_train = pd.read_csv(cfg.tran_origin_train_file).drop('Unnamed: 0', axis=1)
     print('[info]:start read from tag_train...')
     tag_train = pd.read_csv(cfg.tag_train_sorted_file).drop('Unnamed: 0', axis=1)
     return op_train, tran_train, tag_train
+
+
+def load_round1_data():
+    print('[info]:start read from op_rd1...')
+    op_rd1 = pd.read_csv(cfg.op_origin_round1_file).drop('Unnamed: 0', axis=1)
+    print('[info]:start read from tran_rd1...')
+    tran_rd1 = pd.read_csv(cfg.tran_origin_round1_file).drop('Unnamed: 0', axis=1)
+    return op_rd1, tran_rd1
 
 
 def load_fts():
@@ -39,7 +47,10 @@ def oneday_cnt(tmp, gb_str, ft_str):
 
 def topcnts_oneday(tmp, sub_str):
     top_oneday = oneday_cnt(tmp, 'day', sub_str)
-    top_idx, top_cnt = 0, top_oneday[0][1]
+    if pd.Series(top_oneday).hasnans:
+        return np.nan, np.nan, np.nan
+    top_idx = 0
+    top_cnt = top_oneday[0][1]
     for item in top_oneday:
         if top_cnt < item[1]:
             top_cnt = item[1]
@@ -196,7 +207,7 @@ def fetch_op_fts(op_train):
 
         features.append(op_feature)
     features = pd.DataFrame(features)
-    features.to_csv(cfg.tran_train_fts_file)
+    features.to_csv(cfg.op_train_fts_file)
     return features
 
 
@@ -253,7 +264,7 @@ def fetch_tran_fts(tran_train):
         tran_feature['top_ip1sub_in_diffUID_cnt'] = top_type_in_diffUID_cnt(tmp, 'ip1_sub', tran_ip1sub_dict)
         features.append(tran_feature)
     features = pd.DataFrame(features)
-    features.to_csv(cfg.op_train_fts_file)
+    features.to_csv(cfg.tran_train_fts_file)
     return features
 
 
@@ -263,19 +274,60 @@ def get_feature(op, trans, tag):
     return tag
 
 
-def main():
-    op_train, tran_train, tag_train = load_data()
-    if not os.path.exists(cfg.op_train_fts_file) or not os.path.exists(cfg.tran_train_fts_file):
+def merge_feature(op, tran):
+    rd1 = op.merge(tran, on='UID', how='left')
+    return rd1
+
+
+def train_data():
+    print('train data...')
+    op_train, tran_train, tag_train = load_new_data()
+    if not os.path.exists(cfg.op_train_fts_file):
         print('fetch_op_fts...')
         op_fts = fetch_op_fts(op_train)
+    else:
+        print('load op_fts...')
+        op_fts = pd.read_csv(cfg.op_train_fts_file)
+
+    if not os.path.exists(cfg.tran_train_fts_file):
         print('fetch_tran_fts...')
         tran_fts = fetch_tran_fts(tran_train)
     else:
-        print('load_fts...')
-        op_fts, tran_fts = load_fts()
-    print('get_feature...')
-    tag = get_feature(op_fts, tran_fts, tag_train)
-    tag.to_csv(cfg.tag_train_fts_file)
+        print('load tran_fts...')
+        tran_fts = pd.read_csv(cfg.tran_train_fts_file)
+
+    if not os.path.exists(cfg.tag_train_fts_file):
+        print('get_feature...')
+        tag = get_feature(op_fts, tran_fts, tag_train)
+        tag.to_csv(cfg.tag_train_fts_file)
+
+
+def round1_data():
+    print('round1 data...')
+    op_rd1, tran_rd1 = load_round1_data()
+    if not os.path.exists(cfg.op_train_fts_round1_file):
+        print('fetch_op_fts...')
+        op_fts = fetch_op_fts(op_rd1)
+    else:
+        print('load op_fts...')
+        op_fts = pd.read_csv(cfg.op_train_fts_round1_file)
+
+    if not os.path.exists(cfg.tran_train_fts_round1_file):
+        print('fetch_tran_fts...')
+        tran_fts = fetch_tran_fts(tran_rd1)
+    else:
+        print('load tran_fts...')
+        tran_fts = pd.read_csv(cfg.tran_train_fts_round1_file)
+
+    if not os.path.exists(cfg.round1_fts_file):
+        print('merge_feature...')
+        round1_fts = merge_feature(op_fts, tran_fts)
+        round1_fts.to_csv(cfg.round1_fts_file)
+
+
+def main():
+    train_data()
+    round1_data()
 
 
 if __name__ == '__main__':
