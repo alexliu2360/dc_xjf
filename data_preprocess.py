@@ -18,6 +18,13 @@ def fillna(data, numeric_fts, string_fts):
     return data
 
 
+def replace_ft_value(data, fts, src_str, re_str):
+    assert type(fts) is list
+
+    for ft in fts:
+        data[ft].replace(src_str, re_str, inplace=True)
+
+
 def load_data():
     if not os.path.exists(cfg.op_train_sorted_file) \
             or not os.path.exists(cfg.tran_train_sorted_file) \
@@ -178,13 +185,14 @@ def label_encode(train_data, le_obj_fts):
 
 
 def main():
-
     op_train, tran_train, tag_train = load_data()
     op_columns = list(op_train.columns)
     tran_columns = list(tran_train.columns)
 
+    cfg.op_obj_fts = remove_list_item(cfg.op_obj_fts, cfg.op_drop_fts)
     cfg.op_le_obj_fts = remove_list_item(cfg.op_le_obj_fts, cfg.op_drop_fts)
     cfg.op_numtype_fts = remove_list_item(cfg.op_numtype_fts, cfg.op_drop_fts)
+    cfg.tran_obj_fts = remove_list_item(cfg.tran_obj_fts, cfg.tran_drop_fts)
     cfg.tran_le_obj_fts = remove_list_item(cfg.tran_le_obj_fts, cfg.tran_drop_fts)
     cfg.tran_numtype_fts = remove_list_item(cfg.tran_numtype_fts, cfg.tran_drop_fts)
 
@@ -197,8 +205,19 @@ def main():
     tran_train.drop(cfg.tran_drop_fts, axis='columns', inplace=True)
     # 填补缺失值
     print('fillna...')
-    op_train = fillna(op_train, cfg.op_numtype_fts, cfg.op_le_obj_fts)
-    tran_train = fillna(tran_train, cfg.tran_numtype_fts, cfg.tran_le_obj_fts)
+    op_train = fillna(op_train, cfg.op_numtype_fts, cfg.op_obj_fts)
+    tran_train = fillna(tran_train, cfg.tran_numtype_fts, cfg.tran_obj_fts)
+    # 替换需要合并的特征中'-1'的值 这样可以进行特征值的拼接
+    print('replace_ft_values...')
+    replace_ft_value(op_train, ['device_code1', 'device_code2', 'device_code3', 'ip1', 'ip2', 'ip1_sub', 'ip2_sub'], '-1', '')
+    replace_ft_value(tran_train, ['device_code1', 'device_code2', 'device_code3'], '-1', '')
+    # 增加device和ip新ft
+    print('add new fts...')
+    op_train['device_code'] = op_train['device_code1'] + op_train['device_code2'] + op_train['device_code3'] + op_train[
+        'ip2']
+    op_train['ip'] = op_train['ip1'] + op_train['ip2']
+    op_train['ipsub'] = op_train['ip1_sub'] + op_train['ip2_sub']
+    tran_train['device_code'] = tran_train['device_code1'] + tran_train['device_code2'] + tran_train['device_code3']
     # 编码
     print('label_encode...')
     op_train = label_encode(op_train, cfg.op_le_obj_fts)
