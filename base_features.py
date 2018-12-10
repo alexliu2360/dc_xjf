@@ -20,7 +20,9 @@ def load_round1_data():
     op_rd1 = pd.read_csv(cfg.op_origin_round1_file).drop('Unnamed: 0', axis=1)
     print('[info]:start read from tran_rd1...')
     tran_rd1 = pd.read_csv(cfg.tran_origin_round1_file).drop('Unnamed: 0', axis=1)
-    return op_rd1, tran_rd1
+    print()
+    sub = pd.read_csv('../data/submit_sample.csv')
+    return op_rd1, tran_rd1, sub
 
 
 def load_fts():
@@ -207,7 +209,6 @@ def fetch_op_fts(op_train):
 
         features.append(op_feature)
     features = pd.DataFrame(features)
-    features.to_csv(cfg.op_train_fts_file)
     return features
 
 
@@ -264,19 +265,21 @@ def fetch_tran_fts(tran_train):
         tran_feature['top_ip1sub_in_diffUID_cnt'] = top_type_in_diffUID_cnt(tmp, 'ip1_sub', tran_ip1sub_dict)
         features.append(tran_feature)
     features = pd.DataFrame(features)
-    features.to_csv(cfg.tran_train_fts_file)
     return features
 
 
 def get_feature(op, trans, tag):
     tag = tag.merge(op, on='UID', how='left')
     tag = tag.merge(trans, on='UID', how='left')
+    tag.fillna(-1, inplace=True)
     return tag
 
 
-def merge_feature(op, tran):
-    rd1 = op.merge(tran, on='UID', how='left')
-    return rd1
+def merge_feature(op, tran, sub):
+    sub = sub.merge(op, on='UID', how='left')
+    sub = sub.merge(tran, on='UID', how='left')
+    sub.fillna(-1, inplace=True)
+    return sub
 
 
 def train_data():
@@ -285,6 +288,7 @@ def train_data():
     if not os.path.exists(cfg.op_train_fts_file):
         print('fetch_op_fts...')
         op_fts = fetch_op_fts(op_train)
+        op_fts.to_csv(cfg.op_train_fts_file)
     else:
         print('load op_fts...')
         op_fts = pd.read_csv(cfg.op_train_fts_file)
@@ -292,6 +296,7 @@ def train_data():
     if not os.path.exists(cfg.tran_train_fts_file):
         print('fetch_tran_fts...')
         tran_fts = fetch_tran_fts(tran_train)
+        tran_fts.to_csv(cfg.tran_train_fts_file)
     else:
         print('load tran_fts...')
         tran_fts = pd.read_csv(cfg.tran_train_fts_file)
@@ -304,10 +309,11 @@ def train_data():
 
 def round1_data():
     print('round1 data...')
-    op_rd1, tran_rd1 = load_round1_data()
+    op_rd1, tran_rd1, sub = load_round1_data()
     if not os.path.exists(cfg.op_train_fts_round1_file):
         print('fetch_op_fts...')
         op_fts = fetch_op_fts(op_rd1)
+        op_fts.to_csv(cfg.op_train_fts_round1_file)
     else:
         print('load op_fts...')
         op_fts = pd.read_csv(cfg.op_train_fts_round1_file)
@@ -315,13 +321,14 @@ def round1_data():
     if not os.path.exists(cfg.tran_train_fts_round1_file):
         print('fetch_tran_fts...')
         tran_fts = fetch_tran_fts(tran_rd1)
+        tran_fts.to_csv(cfg.tran_train_fts_round1_file)
     else:
         print('load tran_fts...')
         tran_fts = pd.read_csv(cfg.tran_train_fts_round1_file)
 
     if not os.path.exists(cfg.round1_fts_file):
         print('merge_feature...')
-        round1_fts = merge_feature(op_fts, tran_fts)
+        round1_fts = merge_feature(op_fts, tran_fts, sub)
         round1_fts.to_csv(cfg.round1_fts_file)
 
 

@@ -2,25 +2,39 @@ from sklearn.svm import LinearSVC
 from sklearn.model_selection import train_test_split
 import lightgbm as lgb
 import pandas as pd
+import config as cfg
+import numpy as np
 
 
-def load_data():
-    pass
+def tpr_weight_funtion(y_true, y_predict):
+    d = pd.DataFrame()
+    d['prob'] = list(y_predict)
+    d['y'] = list(y_true)
+    d = d.sort_values(['prob'], ascending=[0])
+    y = d.y
+    PosAll = pd.Series(y).value_counts()[1]
+    NegAll = pd.Series(y).value_counts()[0]
+    pCumsum = d['y'].cumsum()
+    nCumsum = np.arange(len(y)) - pCumsum + 1
+    pCumsumPer = pCumsum / PosAll
+    nCumsumPer = nCumsum / NegAll
+    TR1 = pCumsumPer[abs(nCumsumPer - 0.001).idxmin()]
+    TR2 = pCumsumPer[abs(nCumsumPer - 0.005).idxmin()]
+    TR3 = pCumsumPer[abs(nCumsumPer - 0.01).idxmin()]
+    return 'TC_AUC', 0.4 * TR1 + 0.3 * TR2 + 0.3 * TR3, True
 
+
+def load_train_test_data():
+    train_data = pd.read_csv(cfg.tag_train_fts_file)
+    test_data = pd.read_csv(cfg.round1_fts_file)
+    return train_data, test_data
 
 def fillna(data):
     data.fillna(-1, inplace=True)
     return data
 
 
-def LGB_test(train_x, train_y, test_x, test_y, cate_col=None):
-    if cate_col:
-        data = pd.concat([train_x, test_x])
-        for fea in cate_col:
-            data[fea] = data[fea].fillna('-1')
-            data[fea] = LabelEncoder().fit_transform(data[fea].apply(str))
-        train_x = data[:len(train_x)]
-        test_x = data[len(train_x):]
+def LGB_test(train_x, train_y, test_x, test_y):
     print("LGB test")
     clf = lgb.LGBMClassifier(
         boosting_type='gbdt', num_leaves=31, reg_alpha=0.0, reg_lambda=1,
@@ -33,24 +47,14 @@ def LGB_test(train_x, train_y, test_x, test_y, cate_col=None):
     return clf.best_score_['valid_1']['binary_logloss'], feature_importances
 
 
-def off_test_split(org, cate_col=None):
-    data = org[org.is_trade > -1]
-    data = data.drop(
-        ['hour48', 'hour', 'user_id', 'query1', 'query',
-         'instance_id', 'item_property_list', 'context_id', 'context_timestamp', 'predict_category_property'], axis=1)
-    data['item_category_list'] = LabelEncoder().fit_transform(data['item_category_list'])
-    y = data.pop('is_trade')
+def off_test_split(data, cate_col=None):
+    y = data.pop('Tag')
     train_x, test_x, train_y, test_y = train_test_split(data, y, test_size=0.15, random_state=2018)
-    train_x.drop('day', axis=1, inplace=True)
-    test_x.drop('day', axis=1, inplace=True)
-    score = LGB_test(train_x, train_y, test_x, test_y, cate_col)
+    score = LGB_test(train_x, train_y, test_x, test_y)
     return score[1]
 
 
 def LGB_predict(data, file):
-    data = data.drop(['hour48', 'hour', 'user_id', 'shop_id', 'query1', 'query',
-                      'item_property_list', 'context_id', 'context_timestamp', 'predict_category_property'], axis=1)
-    data['item_category_list'] = LabelEncoder().fit_transform(data['item_category_list'])
     train = data[data['is_trade'] > -1]
     predict = data[data['is_trade'] == -2]
     res = predict[['instance_id']]
@@ -77,18 +81,8 @@ def add(f1, f2):
 
 
 if __name__ == '__main__':
-
-    base = pd.read_csv('../data/final_base.csv')
-    features = off_test_split(base)
-    feature = [i[0] for i in features[-cross_feature_num:]]
-    feature.remove('shop_id')
-    feature.remove('item_id')
-    # shop_id,item_id
-    for i in range(len(feature)):
-        for j in range(i + 1, len(feature)):
-            cross['cross_' + str(i) + '_' + str(j)] = base[feature[i]] / base[feature[j]]
-
-    score = off_test_split(cross)
+    train_data, test_data = load_train_test_data()
+    score = off_test_split(train_data)
     add_feature = [i[0] for i in score[-cross_feature_num:]]
     base_add = pd.concat([base, cross[add_feature]], axis=1)
     LGB_predict(base_add, 'bryan_submit')
